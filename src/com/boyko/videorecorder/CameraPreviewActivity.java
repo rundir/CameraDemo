@@ -58,7 +58,6 @@ public class CameraPreviewActivity extends Activity {
 			final float maxvalue = lightSensor.getMaximumRange(); 
 			
 			mySensorManager.registerListener(new SensorEventListener() {
-
 				@Override
 				public void onSensorChanged(SensorEvent event) {
 					float f = event.values[0];
@@ -76,10 +75,8 @@ public class CameraPreviewActivity extends Activity {
 				}
 
 				@Override
-				public void onAccuracyChanged(Sensor sensor, int accuracy) {
-					// TODO Auto-generated method stub
-
-				}
+				public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+				
 			}, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
 		}
 
