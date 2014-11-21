@@ -13,12 +13,12 @@ import android.media.MediaRecorder.OnInfoListener;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.GridView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
@@ -46,16 +46,25 @@ public class GridViewFragment extends Fragment {
 		gridView = (CustomAdapterView)v.findViewById(R.id.grid_view);
 		gridView.setItemClickListener(new OnItemClickListener() {
 			@Override
-			public boolean onItemClick(CustomAdapterView<?> parent, View view, int position, long id) {
-				Toast.makeText(getActivity(), "tocuh " + id, Toast.LENGTH_SHORT).show();
-				return false;
+			public boolean onItemClick(CustomAdapterView parent, View view, int position, long id) {
+				Toast.makeText(getActivity(), "touch " + id, Toast.LENGTH_SHORT).show();
+				for (int i = 0; i<list.size(); i++) {
+					FriendStub fs = list.get(i);
+					if(id == i){
+						fs.isPlaying = true;
+					}else{
+						fs.isPlaying = false;
+					}
+				}
+				adapter.notifyDataSetChanged();
+				return true;
 			}
 		});
 		gridView.setLongClickListener(new OnItemLongClickListener() {
 			@Override
-			public boolean onItemLongClick(CustomAdapterView<?> parent, View view, int position, long id) {
-				Toast.makeText(getActivity(), "tocuh long", Toast.LENGTH_SHORT).show();
-				return false;
+			public boolean onItemLongClick(CustomAdapterView parent, View view, int position, long id) {
+				Toast.makeText(getActivity(), "touch long", Toast.LENGTH_SHORT).show();
+				return true;
 			}
 		});
 		
@@ -206,6 +215,7 @@ public class GridViewFragment extends Fragment {
 	
 	private class FriendStub{
 		String name;
+		boolean isPlaying;
 	}
 	
 	private class VideosAdapter extends BaseAdapter{
@@ -253,8 +263,10 @@ public class GridViewFragment extends Fragment {
 
 		@Override
 		public long getItemId(int position) {
-			// TODO Auto-generated method stub
-			return position;
+			if(position < (int)(getCount()/2))
+				return position;
+			else
+				return position - 1;
 		}
 
 		@Override
@@ -280,15 +292,21 @@ public class GridViewFragment extends Fragment {
 			View v = LayoutInflater.from(context).inflate(R.layout.friendview_item, null);
 			
 			TextView tw_name = (TextView) v.findViewById(R.id.textView1);
-			VideoView videoView = (VideoView) v.findViewById(R.id.videoView1);
+			final VideoView videoView = (VideoView) v.findViewById(R.id.videoView1);
 			
 			FriendStub st = getItem(position);
 			tw_name.setText(st.name);
 			videoView.setVideoURI(Uri.parse("android.resource://" + context.getPackageName() + "/" + R.raw.small));
 			
+			if(st.isPlaying){
+				videoView.start();
+				Log.w("adapter", "isPlay " + position);
+			}else
+				Log.w("adapter", "isnt Play " + position);
+			
+			v.setTag("friend");
 			return v;
 		}
-		
 	}
-	
+		
 }
