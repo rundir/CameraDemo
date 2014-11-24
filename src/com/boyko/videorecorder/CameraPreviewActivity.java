@@ -39,7 +39,7 @@ import com.example.android.common.media.CameraHelper;
 
 public class CameraPreviewActivity extends Activity {
 	private Preview preview;
-	Camera camera;
+	private Camera camera;
 
 	private MediaRecorder mediaRecorder;
 	protected boolean isRecording;

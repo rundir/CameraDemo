@@ -5,9 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import android.app.Fragment;
-import android.content.Context;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
+import android.media.MediaPlayer;
+import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaRecorder;
 import android.media.MediaRecorder.OnInfoListener;
 import android.net.Uri;
@@ -15,21 +16,21 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseAdapter;
-import android.widget.TextView;
+import android.widget.FrameLayout;
+import android.widget.FrameLayout.LayoutParams;
 import android.widget.Toast;
 import android.widget.VideoView;
 
 import com.boyko.videorecorder.CustomAdapterView.OnItemClickListener;
 import com.boyko.videorecorder.CustomAdapterView.OnItemLongClickListener;
+import com.boyko.videorecorder.CustomAdapterView.OnItemStopTouchListener;
 import com.example.android.common.media.CameraHelper;
 
 public class GridViewFragment extends Fragment {
 
-	Camera camera;
+	private Camera camera;
 
 	private MediaRecorder mediaRecorder;
 	protected boolean isRecording;
@@ -37,37 +38,74 @@ public class GridViewFragment extends Fragment {
 	private CustomAdapterView gridView;
 	private List<FriendStub> list;
 
-	private VideosAdapter adapter;
+	private FriendsAdapter adapter;
+
+	private VideoView videoView;
+
+	private View videoBody;
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		View v = inflater.inflate(R.layout.video_gridview_fragment, null);
+		
+		videoBody = v.findViewById(R.id.video_body);
+		videoView = (VideoView)v.findViewById(R.id.video_view);
+		videoView.setOnCompletionListener(new OnCompletionListener() {
+			@Override
+			public void onCompletion(MediaPlayer mp) {
+				Log.d(getTag(), videoView.getX()+", " +videoView.getX() + ", " + videoView.getWidth() +", " + videoView.getHeight());
+				videoBody.setVisibility(View.INVISIBLE);
+				
+			}
+		});
 	
 		gridView = (CustomAdapterView)v.findViewById(R.id.grid_view);
 		gridView.setItemClickListener(new OnItemClickListener() {
 			@Override
 			public boolean onItemClick(CustomAdapterView parent, View view, int position, long id) {
-				Toast.makeText(getActivity(), "touch " + id, Toast.LENGTH_SHORT).show();
-				for (int i = 0; i<list.size(); i++) {
-					FriendStub fs = list.get(i);
-					if(id == i){
-						fs.isPlaying = true;
-					}else{
-						fs.isPlaying = false;
-					}
-				}
-				adapter.notifyDataSetChanged();
+				videoView.stopPlayback();
+				FriendStub fs = (FriendStub)((FriendsAdapter)parent.getAdapter()).getItem(position);
+				videoView.setVideoURI(fs.videoPath);
+				LayoutParams params = new FrameLayout.LayoutParams(view.getWidth(), view.getHeight());
+				videoBody.setLayoutParams(params);
+				videoBody.setX(view.getX());
+				videoBody.setY(view.getY());
+				videoBody.setVisibility(View.VISIBLE);
+				videoView.start();
 				return true;
 			}
 		});
 		gridView.setLongClickListener(new OnItemLongClickListener() {
 			@Override
 			public boolean onItemLongClick(CustomAdapterView parent, View view, int position, long id) {
-				Toast.makeText(getActivity(), "touch long", Toast.LENGTH_SHORT).show();
+				Logger.d("START RECORD");
+				adapter.setRecording(true);
+				new MediaPrepareTask().execute();
 				return true;
 			}
 		});
-		
+		gridView.setStopTouchListener(new OnItemStopTouchListener() {
+			@Override
+			public boolean onItemStopTouch() {
+				if (isRecording) {
+					Logger.d("STOP RECORD");
+					adapter.setRecording(false);
+					// stop recording and release camera
+					try{
+						mediaRecorder.stop(); // stop the recording
+					}catch(RuntimeException e){
+						Toast.makeText(getActivity(), "Video is too short", Toast.LENGTH_SHORT).show();
+					}
+					releaseMediaRecorder(); // release the MediaRecorder object
+					camera.lock(); // take camera access back from
+									// MediaRecorder
+
+					// inform the user that recording has stopped
+					isRecording = false;
+				}
+				return false;
+			}
+		});
 		return v;
 	}
 
@@ -75,16 +113,17 @@ public class GridViewFragment extends Fragment {
 	public void onViewCreated(View view, Bundle savedInstanceState) {
 		super.onViewCreated(view, savedInstanceState);
 		
-		list = new ArrayList<GridViewFragment.FriendStub>(8);
+		list = new ArrayList<FriendStub>(8);
 		
 		for (int i = 1; i<9; i++) {
 			FriendStub stub = new FriendStub();
 			stub.name = "friend "+ (i);
+			stub.videoPath = Uri.parse("android.resource://" + getActivity().getPackageName() + "/" + R.raw.small);
+			stub.imagePath = i+".jpg";
 			list.add(stub);
 		}
 		
-		
-		adapter = new VideosAdapter(getActivity(), list);
+		adapter = new FriendsAdapter(getActivity(), list);
 		gridView.setAdapter(adapter);
 	}
 
@@ -209,103 +248,6 @@ public class GridViewFragment extends Fragment {
 
 		@Override
 		protected void onPostExecute(Void result) {
-		}
-	}
-
-	
-	private class FriendStub{
-		String name;
-		boolean isPlaying;
-	}
-	
-	private class VideosAdapter extends BaseAdapter{
-
-		private Context context;
-		private List<FriendStub> list;
-		private Preview preview;
-		private Camera camera;
-
-		public VideosAdapter(Context context, List<FriendStub> list) {
-			this.context = context;
-			this.list = list;
-		}
-
-		public Surface getPreviewSurface() {
-			return preview.getHolder().getSurface();
-		}
-
-		public int getPreviewWidth() {
-			return preview.getHeight();
-		}
-
-		public int getPreviewHeight() {
-			return preview.getWidth();
-		}
-
-		public void setCamera(Camera camera) {
-			if(preview!=null)
-				preview.setCamera(camera);
-			this.camera = camera;
-		}
-
-		@Override
-		public int getCount() {
-			return list.size() + 1;
-		}
-
-		@Override
-		public FriendStub getItem(int position) {
-			if(position < (int)(getCount()/2))
-				return list.get(position);
-			else
-				return list.get(position-1);
-		}
-
-		@Override
-		public long getItemId(int position) {
-			if(position < (int)(getCount()/2))
-				return position;
-			else
-				return position - 1;
-		}
-
-		@Override
-		public View getView(int position, View convertView, ViewGroup parent) {
-			View v;
-			if(position == getCount()/2){
-				v = getUserView(position, convertView, parent);
-			}else{
-				v = getFriendView(position, convertView, parent);
-			}
-			
-			return v;
-		}
-
-		private View getUserView(int position, View convertView, ViewGroup parent) {
-			preview = new Preview(context);
-			if(camera != null)
-				preview.setCamera(camera);
-			return preview;
-		}
-
-		private View getFriendView(int position, View convertView, ViewGroup parent) {
-			View v = LayoutInflater.from(context).inflate(R.layout.friendview_item, null);
-			
-			TextView tw_name = (TextView) v.findViewById(R.id.textView1);
-			final VideoView videoView = (VideoView) v.findViewById(R.id.videoView1);
-			
-			FriendStub st = getItem(position);
-			tw_name.setText(st.name);
-			videoView.setVideoURI(Uri.parse("android.resource://" + context.getPackageName() + "/" + R.raw.small));
-			
-			if(st.isPlaying){
-				videoView.start();
-				Log.w("adapter", "isPlay " + position);
-			}else
-				Log.w("adapter", "isnt Play " + position);
-			
-			v.setTag("friend");
-			return v;
 		}
 	}
 		

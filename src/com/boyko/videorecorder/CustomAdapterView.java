@@ -19,7 +19,6 @@ package com.boyko.videorecorder;
 import android.content.Context;
 import android.database.DataSetObserver;
 import android.graphics.Rect;
-import android.os.Parcelable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -54,11 +53,6 @@ public class CustomAdapterView extends ViewGroup {
 	 */
 	static final int TOUCH_MODE_DONE_WAITING = 2;
 	/**
-	 * Sentinel value for no current active pointer. Used by
-	 * {@link #mActivePointerId}.
-	 */
-	private static final int INVALID_POINTER = -1;
-	/**
 	 * Represents an invalid position. All valid positions are in the range 0 to
 	 * 1 less than the number of items in the current adapter.
 	 */
@@ -72,9 +66,14 @@ public class CustomAdapterView extends ViewGroup {
 		boolean onItemLongClick(CustomAdapterView parent, View view, int position, long id);
 	}
 
+	public interface OnItemStopTouchListener {
+		boolean onItemStopTouch();
+	}
+
 	private BaseAdapter adapter;
 	private OnItemClickListener itemClickListener;
 	private OnItemLongClickListener longClickListener;
+	private OnItemStopTouchListener stopTouchListener;
 
 	/**
 	 * One of TOUCH_MODE_REST, TOUCH_MODE_DOWN, TOUCH_MODE_TAP,
@@ -112,9 +111,6 @@ public class CustomAdapterView extends ViewGroup {
 	private DataSetObserver dataSetObserver;
 
 	private boolean isDirty;
-
-	private int lastClickedPosition = -1;
-	private int currentClickedPosition = -1;
 
 	public CustomAdapterView(Context context, AttributeSet attrs, int defStyle) {
 		super(context, attrs, defStyle);
@@ -159,32 +155,20 @@ public class CustomAdapterView extends ViewGroup {
 		this.longClickListener = longClickListener;
 	}
 
+	public OnItemStopTouchListener getStopTouchListener() {
+		return stopTouchListener;
+	}
+
+	public void setStopTouchListener(OnItemStopTouchListener stopTouchListener) {
+		this.stopTouchListener = stopTouchListener;
+	}
+
 	@Override
 	protected void onLayout(boolean changed, int l, int t, int r, int b) {
 		if (adapter == null)
 			return;
 		if(isDirty == true && getChildCount()>0){
-			
-			Log.d(VIEW_LOG_TAG, lastClickedPosition + "," + currentClickedPosition);
-			
-			if(lastClickedPosition != -1){
-				View v=adapter.getView(lastClickedPosition, null, this);
-				removeViewAt(lastClickedPosition);
-				addAndMeasureChild(v, lastClickedPosition);
-			}
-			if(currentClickedPosition != -1){
-				View v=adapter.getView(currentClickedPosition, null, this);
-				removeViewAt(currentClickedPosition);
-				addAndMeasureChild(v, currentClickedPosition);
-			}
-			
-//			for(int position=0; position<getChildCount(); position++){
-//				View v=adapter.getView(position, null, this);
-//				if(v.getTag()!=null){
-//					removeViewAt(position);
-//					addAndMeasureChild(v, position);
-//				}
-//			}
+			removeAllViews();
 		}else if (getChildCount() < adapter.getCount()) {
 			int position = 0;
 			int bottomEdge = 0;
@@ -203,7 +187,6 @@ public class CustomAdapterView extends ViewGroup {
 		}
 		layoutChildren();
 		isDirty = false;
-		lastClickedPosition = currentClickedPosition;
 	}
 
 	/**
@@ -308,12 +291,13 @@ public class CustomAdapterView extends ViewGroup {
 			mMotionPosition = motionPosition;
 		}
 
-		if (mTouchMode == TOUCH_MODE_DOWN && mMotionPosition != INVALID_POSITION && performButtonActionOnTouchDown(ev)) {
-			removeCallbacks(mPendingCheckForTap);
-		}
 	}
 
 	private void onTouchUp(MotionEvent ev) {
+		
+		if(stopTouchListener!=null)
+			stopTouchListener.onItemStopTouch();
+		
 		switch (mTouchMode) {
 		case TOUCH_MODE_DOWN:
 		case TOUCH_MODE_TAP:
@@ -327,8 +311,6 @@ public class CustomAdapterView extends ViewGroup {
 				
 				child.dispatchTouchEvent(ev);
 
-				final float x = ev.getX();
-				// if (!child.hasFocusable())
 				{
 					if (mPerformClick == null) {
 						mPerformClick = new PerformClick();
@@ -510,66 +492,21 @@ public class CustomAdapterView extends ViewGroup {
 		}
 	}
 
-    private 
-    class AdapterDataSetObserver extends DataSetObserver {
-
-        private Parcelable mInstanceState = null;
-
+    private class AdapterDataSetObserver extends DataSetObserver {
         @Override
         public void onChanged() {
-//            mDataChanged = true;
-//            mOldItemCount = mItemCount;
-//            mItemCount = getAdapter().getCount();
-//
-//            // Detect the case where a cursor that was previously invalidated has
-//            // been repopulated with new data.
-//            if (AdapterView.this.getAdapter().hasStableIds() && mInstanceState != null
-//                    && mOldItemCount == 0 && mItemCount > 0) {
-//                AdapterView.this.onRestoreInstanceState(mInstanceState);
-//                mInstanceState = null;
-//            } else {
-//                rememberSyncState();
-//            }
-//            checkFocus();
         	isDirty = true && getChildCount()>0;
             requestLayout();
         }
 
         @Override
         public void onInvalidated() {
-//            mDataChanged = true;
-//
-//            if (AdapterView.this.getAdapter().hasStableIds()) {
-//                // Remember the current state for the case where our hosting activity is being
-//                // stopped and later restarted
-//                mInstanceState = AdapterView.this.onSaveInstanceState();
-//            }
-//
-//            // Data is invalid so we should reset our state
-//            mOldItemCount = mItemCount;
-//            mItemCount = 0;
-//            mSelectedPosition = INVALID_POSITION;
-//            mSelectedRowId = INVALID_ROW_ID;
-//            mNextSelectedPosition = INVALID_POSITION;
-//            mNextSelectedRowId = INVALID_ROW_ID;
-//            mNeedSync = false;
-//
-//            checkFocus();
             requestLayout();
         }
     }
 
-
-	private boolean performButtonActionOnTouchDown(MotionEvent ev) {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
 	public boolean performItemClick(View view, int position, long id) {
 		Log.d(VIEW_LOG_TAG, "performItemClick");
-		
-		currentClickedPosition = position;
-		
 		boolean handled = false;
 		if (itemClickListener != null)
 			handled = itemClickListener.onItemClick(this, view, position, id);
