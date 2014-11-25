@@ -30,6 +30,7 @@ import android.widget.ListAdapter;
 
 public class CustomAdapterView extends ViewGroup {
 
+	private static final int BIG_MOVE_DISTANCE = 125;
 	/**
 	 * Indicates that we are not in the middle of a touch gesture
 	 */
@@ -52,28 +53,22 @@ public class CustomAdapterView extends ViewGroup {
 	 * finger is still down
 	 */
 	static final int TOUCH_MODE_DONE_WAITING = 2;
+
 	/**
 	 * Represents an invalid position. All valid positions are in the range 0 to
 	 * 1 less than the number of items in the current adapter.
 	 */
 	public static final int INVALID_POSITION = -1;
 
-	public interface OnItemClickListener {
+	public interface OnItemTouchListener {
 		boolean onItemClick(CustomAdapterView parent, View view, int position, long id);
-	}
-
-	public interface OnItemLongClickListener {
 		boolean onItemLongClick(CustomAdapterView parent, View view, int position, long id);
-	}
-
-	public interface OnItemStopTouchListener {
 		boolean onItemStopTouch();
+		boolean onCancelTouch();
 	}
 
 	private BaseAdapter adapter;
-	private OnItemClickListener itemClickListener;
-	private OnItemLongClickListener longClickListener;
-	private OnItemStopTouchListener stopTouchListener;
+	private OnItemTouchListener itemClickListener;
 
 	/**
 	 * One of TOUCH_MODE_REST, TOUCH_MODE_DOWN, TOUCH_MODE_TAP,
@@ -105,6 +100,14 @@ public class CustomAdapterView extends ViewGroup {
 	 * Acts upon click
 	 */
 	private PerformClick mPerformClick;
+	/**
+	 * Last touched position
+	 */
+	private int mLastX;
+	/**
+	 * Last touched position
+	 */
+	private int mLastY;
 
 	private boolean isAttach;
 
@@ -125,13 +128,13 @@ public class CustomAdapterView extends ViewGroup {
 	}
 
 	public void setAdapter(BaseAdapter adapter) {
-		if(this.adapter != null){
+		if (this.adapter != null) {
 			this.adapter.unregisterDataSetObserver(dataSetObserver);
 		}
 
-        dataSetObserver = new AdapterDataSetObserver();
-        adapter.registerDataSetObserver(dataSetObserver);
-			
+		dataSetObserver = new AdapterDataSetObserver();
+		adapter.registerDataSetObserver(dataSetObserver);
+
 		this.adapter = adapter;
 	}
 
@@ -139,47 +142,31 @@ public class CustomAdapterView extends ViewGroup {
 		return adapter;
 	}
 
-	public OnItemClickListener getItemClickListener() {
+	public OnItemTouchListener getItemClickListener() {
 		return itemClickListener;
 	}
 
-	public void setItemClickListener(OnItemClickListener itemClickListener) {
+	public void setItemClickListener(OnItemTouchListener itemClickListener) {
 		this.itemClickListener = itemClickListener;
-	}
-
-	public OnItemLongClickListener getLongClickListener() {
-		return longClickListener;
-	}
-
-	public void setLongClickListener(OnItemLongClickListener longClickListener) {
-		this.longClickListener = longClickListener;
-	}
-
-	public OnItemStopTouchListener getStopTouchListener() {
-		return stopTouchListener;
-	}
-
-	public void setStopTouchListener(OnItemStopTouchListener stopTouchListener) {
-		this.stopTouchListener = stopTouchListener;
 	}
 
 	@Override
 	protected void onLayout(boolean changed, int l, int t, int r, int b) {
 		if (adapter == null)
 			return;
-		if(isDirty == true && getChildCount()>0){
+		if (isDirty == true && getChildCount() > 0) {
 			removeAllViews();
-		}else if (getChildCount() < adapter.getCount()) {
+		} else if (getChildCount() < adapter.getCount()) {
 			int position = 0;
 			int bottomEdge = 0;
 			while (bottomEdge < getHeight() && position < adapter.getCount()) {
 				int rightEdge = 0;
 				int measuredHeight = 0;
 				while (rightEdge < getWidth() && position < adapter.getCount()) {
-						View newChild = adapter.getView(position, null, this);
-						addAndMeasureChild(newChild, position);
-						rightEdge += newChild.getMeasuredWidth();
-						measuredHeight = newChild.getMeasuredHeight();
+					View newChild = adapter.getView(position, null, this);
+					addAndMeasureChild(newChild, position);
+					rightEdge += newChild.getMeasuredWidth();
+					measuredHeight = newChild.getMeasuredHeight();
 					position++;
 				}
 				bottomEdge += measuredHeight;
@@ -252,17 +239,25 @@ public class CustomAdapterView extends ViewGroup {
 		final int actionMasked = ev.getActionMasked();
 		switch (actionMasked) {
 		case MotionEvent.ACTION_DOWN: {
+			Log.w(VIEW_LOG_TAG, "ACTION_DOWN");
 			onTouchDown(ev);
 			break;
 		}
 
 		case MotionEvent.ACTION_UP: {
+			Log.w(VIEW_LOG_TAG, "ACTION_UP");
 			onTouchUp(ev);
 			break;
 		}
 
 		case MotionEvent.ACTION_CANCEL: {
+			Log.w(VIEW_LOG_TAG, "ACTION_CANCEL");
 			onTouchCancel();
+			break;
+		}
+		case MotionEvent.ACTION_MOVE: {
+			Log.w(VIEW_LOG_TAG, "ACTION_MOVE");
+			onTouchMove(ev);
 			break;
 		}
 		}
@@ -291,69 +286,72 @@ public class CustomAdapterView extends ViewGroup {
 			mMotionPosition = motionPosition;
 		}
 
+		mLastX = x;
+		mLastY = y;
+
 	}
 
 	private void onTouchUp(MotionEvent ev) {
-		
-		if(stopTouchListener!=null)
-			stopTouchListener.onItemStopTouch();
-		
+
+		if (itemClickListener != null)
+			itemClickListener.onItemStopTouch();
+
 		switch (mTouchMode) {
 		case TOUCH_MODE_DOWN:
 		case TOUCH_MODE_TAP:
-		case TOUCH_MODE_DONE_WAITING:
+		case TOUCH_MODE_DONE_WAITING: {
 			final int motionPosition = mMotionPosition;
 			final View child = getChildAt(motionPosition);
 			if (child != null) {
 				if (mTouchMode != TOUCH_MODE_DOWN) {
 					child.setPressed(false);
 				}
-				
+
 				child.dispatchTouchEvent(ev);
 
-				{
-					if (mPerformClick == null) {
-						mPerformClick = new PerformClick();
-					}
-
-					final PerformClick performClick = mPerformClick;
-					performClick.mClickMotionPosition = motionPosition;
-					performClick.rememberWindowAttachCount();
-					if (mTouchMode == TOUCH_MODE_DOWN || mTouchMode == TOUCH_MODE_TAP) {
-						removeCallbacks(mTouchMode == TOUCH_MODE_DOWN ? mPendingCheckForTap : mPendingCheckForLongPress);
-
-						if (adapter.isEnabled(motionPosition)) {
-							mTouchMode = TOUCH_MODE_TAP;
-							layoutChildren();
-							child.setPressed(true);
-							setPressed(true);
-							if (mTouchModeReset != null) {
-								removeCallbacks(mTouchModeReset);
-							}
-							mTouchModeReset = new Runnable() {
-								@Override
-								public void run() {
-									mTouchModeReset = null;
-									mTouchMode = TOUCH_MODE_REST;
-									child.setPressed(false);
-									setPressed(false);
-									if (isAttach) {
-										performClick.run();
-									}
-								}
-							};
-							postDelayed(mTouchModeReset, ViewConfiguration.getPressedStateDuration());
-						} else {
-							mTouchMode = TOUCH_MODE_REST;
-						}
-						return;
-					} else if (adapter.isEnabled(motionPosition)) {
-						performClick.run();
-					}
+				if (mPerformClick == null) {
+					mPerformClick = new PerformClick();
 				}
+
+				final PerformClick performClick = mPerformClick;
+				performClick.mClickMotionPosition = motionPosition;
+				performClick.rememberWindowAttachCount();
+				if (mTouchMode == TOUCH_MODE_DOWN || mTouchMode == TOUCH_MODE_TAP) {
+					removeCallbacks(mTouchMode == TOUCH_MODE_DOWN ? mPendingCheckForTap : mPendingCheckForLongPress);
+
+					if (adapter.isEnabled(motionPosition)) {
+						mTouchMode = TOUCH_MODE_TAP;
+						layoutChildren();
+						child.setPressed(true);
+						setPressed(true);
+						if (mTouchModeReset != null) {
+							removeCallbacks(mTouchModeReset);
+						}
+						mTouchModeReset = new Runnable() {
+							@Override
+							public void run() {
+								mTouchModeReset = null;
+								mTouchMode = TOUCH_MODE_REST;
+								child.setPressed(false);
+								setPressed(false);
+								if (isAttach) {
+									performClick.run();
+								}
+							}
+						};
+						postDelayed(mTouchModeReset, ViewConfiguration.getPressedStateDuration());
+					} else {
+						mTouchMode = TOUCH_MODE_REST;
+					}
+					return;
+				} else if (adapter.isEnabled(motionPosition)) {
+					performClick.run();
+				}
+
 			}
 			mTouchMode = TOUCH_MODE_REST;
 			break;
+		}
 		}
 		setPressed(false);
 
@@ -372,6 +370,35 @@ public class CustomAdapterView extends ViewGroup {
 				motionView.setPressed(false);
 			}
 			removeCallbacks(mPendingCheckForLongPress);
+		}
+	}
+
+	private void onTouchMove(MotionEvent ev) {
+		if (isBigMove(ev)) {
+			mTouchMode = TOUCH_MODE_REST;
+			setPressed(false);
+			final View motionView = this.getChildAt(mMotionPosition);
+			if (motionView != null) {
+				motionView.setPressed(false);
+			}
+			removeCallbacks(mPendingCheckForLongPress);
+			if (itemClickListener != null)
+				itemClickListener.onCancelTouch();
+		}
+	}
+
+	private boolean isBigMove(MotionEvent event) {
+		Double a2 = Math.pow(mLastX - event.getRawX(), 2D);
+		Double b2 = Math.pow(mLastY - event.getRawY(), 2D);
+		Double limit = (double) Convenience.dpToPx(getContext(), (int) Math.pow(BIG_MOVE_DISTANCE, 2D));
+		
+		Log.d(VIEW_LOG_TAG, "isBigMove " + mLastX + ", " + mLastY + " | " + event.getRawX() + "," + event.getRawY()
+				+ " || " + (a2 + b2) + " ? "+ limit);
+		
+		if (a2 + b2 > limit) {
+			return true;
+		} else {
+			return false;
 		}
 	}
 
@@ -412,7 +439,7 @@ public class CustomAdapterView extends ViewGroup {
 			if (mTouchMode == TOUCH_MODE_DOWN) {
 				mTouchMode = TOUCH_MODE_TAP;
 				final View child = getChildAt(mMotionPosition);
-				if (child != null){// && !child.hasFocusable()) {
+				if (child != null) {// && !child.hasFocusable()) {
 
 					child.setPressed(true);
 					setPressed(true);
@@ -420,11 +447,11 @@ public class CustomAdapterView extends ViewGroup {
 
 					final int longPressTimeout = ViewConfiguration.getLongPressTimeout();
 
-						if (mPendingCheckForLongPress == null) {
-							mPendingCheckForLongPress = new CheckForLongPress();
-						}
-						mPendingCheckForLongPress.rememberWindowAttachCount();
-						postDelayed(mPendingCheckForLongPress, longPressTimeout);
+					if (mPendingCheckForLongPress == null) {
+						mPendingCheckForLongPress = new CheckForLongPress();
+					}
+					mPendingCheckForLongPress.rememberWindowAttachCount();
+					postDelayed(mPendingCheckForLongPress, longPressTimeout);
 				}
 			}
 		}
@@ -492,18 +519,18 @@ public class CustomAdapterView extends ViewGroup {
 		}
 	}
 
-    private class AdapterDataSetObserver extends DataSetObserver {
-        @Override
-        public void onChanged() {
-        	isDirty = true && getChildCount()>0;
-            requestLayout();
-        }
+	private class AdapterDataSetObserver extends DataSetObserver {
+		@Override
+		public void onChanged() {
+			isDirty = true && getChildCount() > 0;
+			requestLayout();
+		}
 
-        @Override
-        public void onInvalidated() {
-            requestLayout();
-        }
-    }
+		@Override
+		public void onInvalidated() {
+			requestLayout();
+		}
+	}
 
 	public boolean performItemClick(View view, int position, long id) {
 		Log.d(VIEW_LOG_TAG, "performItemClick");
@@ -517,8 +544,8 @@ public class CustomAdapterView extends ViewGroup {
 	boolean performLongPress(final View child, final int longPressPosition, final long longPressId) {
 
 		boolean handled = false;
-		if (longClickListener != null) {
-			handled = longClickListener.onItemLongClick(this, child, longPressPosition, longPressId);
+		if (itemClickListener != null) {
+			handled = itemClickListener.onItemLongClick(this, child, longPressPosition, longPressId);
 		}
 		return handled;
 	}

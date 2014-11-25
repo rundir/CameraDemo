@@ -66,6 +66,8 @@ public class FriendsAdapter extends BaseAdapter {
 
 	@Override
 	public long getItemId(int position) {
+		if (position == getCount() / 2)
+			return -1;
 		if (position < (int) (getCount() / 2))
 			return position;
 		else

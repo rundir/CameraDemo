@@ -23,9 +23,7 @@ import android.widget.FrameLayout.LayoutParams;
 import android.widget.Toast;
 import android.widget.VideoView;
 
-import com.boyko.videorecorder.CustomAdapterView.OnItemClickListener;
-import com.boyko.videorecorder.CustomAdapterView.OnItemLongClickListener;
-import com.boyko.videorecorder.CustomAdapterView.OnItemStopTouchListener;
+import com.boyko.videorecorder.CustomAdapterView.OnItemTouchListener;
 import com.example.android.common.media.CameraHelper;
 
 public class GridViewFragment extends Fragment {
@@ -33,7 +31,9 @@ public class GridViewFragment extends Fragment {
 	private Camera camera;
 
 	private MediaRecorder mediaRecorder;
-	protected boolean isRecording;
+	private boolean isRecording;
+	private boolean isPlaying;
+	private int currentItemPlayed = -1;
 	
 	private CustomAdapterView gridView;
 	private List<FriendStub> list;
@@ -60,33 +60,64 @@ public class GridViewFragment extends Fragment {
 		});
 	
 		gridView = (CustomAdapterView)v.findViewById(R.id.grid_view);
-		gridView.setItemClickListener(new OnItemClickListener() {
+		gridView.setItemClickListener(new OnItemTouchListener() {
 			@Override
 			public boolean onItemClick(CustomAdapterView parent, View view, int position, long id) {
+				if(id == -1)
+					return false;
+				
 				videoView.stopPlayback();
-				FriendStub fs = (FriendStub)((FriendsAdapter)parent.getAdapter()).getItem(position);
-				videoView.setVideoURI(fs.videoPath);
-				LayoutParams params = new FrameLayout.LayoutParams(view.getWidth(), view.getHeight());
-				videoBody.setLayoutParams(params);
-				videoBody.setX(view.getX());
-				videoBody.setY(view.getY());
-				videoBody.setVisibility(View.VISIBLE);
-				videoView.start();
+				if(isPlaying && currentItemPlayed == position){
+					videoBody.setVisibility(View.INVISIBLE);
+					currentItemPlayed = -1;
+				}else{
+					FriendStub fs = (FriendStub)((FriendsAdapter)parent.getAdapter()).getItem(position);
+					videoView.setVideoURI(fs.videoPath);
+					LayoutParams params = new FrameLayout.LayoutParams(view.getWidth(), view.getHeight());
+					videoBody.setLayoutParams(params);
+					videoBody.setX(view.getX());
+					videoBody.setY(view.getY());
+					videoBody.setVisibility(View.VISIBLE);
+					videoView.start();
+					currentItemPlayed = position;
+				}
+				isPlaying = !isPlaying;
 				return true;
 			}
-		});
-		gridView.setLongClickListener(new OnItemLongClickListener() {
 			@Override
 			public boolean onItemLongClick(CustomAdapterView parent, View view, int position, long id) {
 				Logger.d("START RECORD");
+				if(id == -1)
+					return false;
+
 				adapter.setRecording(true);
 				new MediaPrepareTask().execute();
 				return true;
 			}
-		});
-		gridView.setStopTouchListener(new OnItemStopTouchListener() {
 			@Override
 			public boolean onItemStopTouch() {
+				if (isRecording) {
+					Logger.d("STOP RECORD");
+					adapter.setRecording(false);
+					// stop recording and release camera
+					try{
+						mediaRecorder.stop(); // stop the recording
+					}catch(RuntimeException e){
+						Toast.makeText(getActivity(), "Video is too short", Toast.LENGTH_SHORT).show();
+					}
+					releaseMediaRecorder(); // release the MediaRecorder object
+					camera.lock(); // take camera access back from
+									// MediaRecorder
+
+					// inform the user that recording has stopped
+					isRecording = false;
+				}
+				return false;
+			}
+
+			@Override
+			public boolean onCancelTouch() {
+				Log.d(getTag(), "onCancelTouch");
 				if (isRecording) {
 					Logger.d("STOP RECORD");
 					adapter.setRecording(false);
