@@ -279,7 +279,7 @@ public class GridViewFragment extends Fragment {
 		});
 
 		//mediaRecorder.setPreviewDisplay(surface);
-		mediaRecorder.setOrientationHint(90);
+		//mediaRecorder.setOrientationHint(90);
 
 		// Step 5: Prepare configured MediaRecorder
 		try {

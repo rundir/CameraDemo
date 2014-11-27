@@ -8,10 +8,4 @@
         android:id="@+id/textureView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
-
-    <com.boyko.videorecorder.OveralayView
-        android:id="@+id/overlay"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
-
 </FrameLayout>

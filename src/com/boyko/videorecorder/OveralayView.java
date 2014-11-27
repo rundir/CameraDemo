@@ -24,15 +24,10 @@ public class OveralayView extends View {
 	}
 
 	@Override
-	public void draw(Canvas canvas) {
-		super.draw(canvas);
+	protected void onDraw(Canvas canvas) {
+		super.onDraw(canvas);
 		drawIndicator(canvas);
 	}
-//	@Override
-//	protected void onDraw(Canvas canvas) {
-//		super.onDraw(canvas);
-//		drawIndicator(canvas);
-//	}
 	
 	private void drawIndicator(Canvas c){
 		Path borderPath = new Path();
