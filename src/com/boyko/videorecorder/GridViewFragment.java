@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import android.app.Fragment;
+import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.media.MediaPlayer;
@@ -16,6 +17,8 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.TextureView.SurfaceTextureListener;
+import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -43,6 +46,12 @@ public class GridViewFragment extends Fragment {
 	private VideoView videoView;
 
 	private View videoBody;
+
+	private SurfaceTexture surface;
+
+	private int surfaceWidth;
+
+	private int surfaceHeight;
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -156,16 +165,56 @@ public class GridViewFragment extends Fragment {
 		
 		adapter = new FriendsAdapter(getActivity(), list);
 		gridView.setAdapter(adapter);
+		
+		adapter.setListener(new SurfaceTextureListener() {
+			
+			@Override
+			public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+			}
+			
+			@Override
+			public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+				Log.d(getTag(), "onSurfaceTextureSizeChanged");
+			}
+			
+			@Override
+			public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+				Log.d(getTag(), "onSurfaceTextureDestroyed");
+					camera.release();
+					camera = null;
+		          return true;
+			}
+			
+			@Override
+			public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+				Log.d(getTag(), "onSurfaceTextureAvailable");
+
+				
+				GridViewFragment.this.surface = surface;
+				GridViewFragment.this.surfaceWidth = width;
+				GridViewFragment.this.surfaceHeight = height;
+				
+		          try {
+		        	  camera = CameraHelper.getDefaultFrontFacingCameraInstance();
+		        	  camera.setPreviewTexture(surface);
+		              camera.setDisplayOrientation(90);
+		              camera.startPreview();
+		          } catch (IOException ioe) {
+		              // Something bad happened
+		          }
+				
+			}
+		});
 	}
 
 	@Override
 	public void onResume() {
 		super.onResume();
+		Log.d(getTag(), "onResume");
 		// Open the default i.e. the first rear facing camera.
-		camera = CameraHelper.getDefaultFrontFacingCameraInstance();
-		if (camera == null)
-			camera = CameraHelper.getDefaultCameraInstance();
-		adapter.setCamera(camera);
+//		if (camera == null)
+//			camera = CameraHelper.getDefaultCameraInstance();
+//		adapter.setCamera(camera);
 	}
 	
 	@Override
@@ -178,11 +227,6 @@ public class GridViewFragment extends Fragment {
 		}
 		// Because the Camera object is a shared resource, it's very
 		// important to release it when the activity is paused.
-		if (camera != null) {
-			adapter.setCamera(null);
-			camera.release();
-			camera = null;
-		}
 	}
 	
 	void prepareRecorder() {
@@ -190,8 +234,8 @@ public class GridViewFragment extends Fragment {
 		Camera.Parameters parameters = camera.getParameters();
 
 		List<Camera.Size> mSupportedPreviewSizes = parameters.getSupportedPreviewSizes();
-		Camera.Size optimalSize = CameraHelper.getOptimalPreviewSize(mSupportedPreviewSizes, adapter.getPreviewWidth(),
-				adapter.getPreviewHeight());
+		Camera.Size optimalSize = CameraHelper.getOptimalPreviewSize(mSupportedPreviewSizes, surfaceWidth,
+				surfaceHeight);
 
 		// Use the same size for recording profile.
 		profile.videoFrameWidth = optimalSize.width;
@@ -234,7 +278,7 @@ public class GridViewFragment extends Fragment {
 			}
 		});
 
-		mediaRecorder.setPreviewDisplay(adapter.getPreviewSurface());
+		//mediaRecorder.setPreviewDisplay(surface);
 		mediaRecorder.setOrientationHint(90);
 
 		// Step 5: Prepare configured MediaRecorder

@@ -90,6 +90,8 @@ public class Preview extends ViewGroup implements SurfaceHolder.Callback{
 		if (supportedPreviewSizes != null) {
 			previewSize = getOptimalPreviewSize(supportedPreviewSizes, width, height);
 		}
+		
+		Log.d(TAG, "onMeasure");
 	}
 
 	@Override
@@ -116,9 +118,12 @@ public class Preview extends ViewGroup implements SurfaceHolder.Callback{
 				child.layout(0, (height - scaledChildHeight) / 2, width, (height + scaledChildHeight) / 2);
 			}
 		}
+		
+		Log.d(TAG, "onLayout");
 	}
 
 	public void surfaceCreated(SurfaceHolder holder) {
+		Log.d(TAG, "surfaceCreated " + holder + ", " + camera);
 		// The Surface has been created, acquire the camera and tell it
 		// where
 		// to draw.
@@ -135,6 +140,7 @@ public class Preview extends ViewGroup implements SurfaceHolder.Callback{
 	}
 
 	public void surfaceDestroyed(SurfaceHolder holder) {
+		Log.d(TAG, "surfaceDestroyed " + holder + ", " + camera);
 		// Surface will be destroyed when we return, so stop the preview.
 		if (this.camera != null) {
 			//this.camera.stopPreview();
@@ -178,6 +184,7 @@ public class Preview extends ViewGroup implements SurfaceHolder.Callback{
 	}
 
 	public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
+		Log.d(TAG, "surfaceChanged " + holder + ", " + camera);
 		// Now that the size is known, set up the camera parameters and
 		// begin
 		// the preview.
@@ -231,11 +238,13 @@ public class Preview extends ViewGroup implements SurfaceHolder.Callback{
 		// parameters.setAutoExposureLock(true);
 		// parameters.setAutoWhiteBalanceLock(true);
 
-		requestLayout();
 
 		this.camera.setParameters(parameters);
 
 		this.camera.startPreview();
+
+		requestLayout();
+		invalidate();
 	}
 
 	public SurfaceHolder getHolder() {

@@ -211,6 +211,8 @@ public class CustomAdapterView extends ViewGroup {
 
 			child.layout(left, top, left + width, top + height);
 		}
+		
+		Log.d(VIEW_LOG_TAG, "layoutChildren");
 	}
 
 	@Override
