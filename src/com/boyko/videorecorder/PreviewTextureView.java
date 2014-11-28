@@ -34,8 +34,8 @@ public class PreviewTextureView extends FrameLayout {
 	}
 
 	private void init() {
-		LayoutInflater.from(getContext()).inflate(R.layout.preview_textureview, this, true);
-		textureView = (TextureView)findViewById(R.id.textureView);
+		textureView = new TextureView(getContext());
+		addView(textureView);
 	}
 
 	public boolean isRecording() {

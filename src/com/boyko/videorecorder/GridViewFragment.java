@@ -180,6 +180,7 @@ public class GridViewFragment extends Fragment {
 			@Override
 			public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
 				Log.d(getTag(), "onSurfaceTextureDestroyed");
+				camera.stopPreview();
 					camera.release();
 					camera = null;
 		          return true;
